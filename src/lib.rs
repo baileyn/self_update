@@ -664,11 +664,13 @@ impl Download {
         let bucket = parts[0].to_string();
         let key = parts[1].to_string();
 
+        debug!("Creating runtime");
         let exec = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap();
 
+        debug!("Downloading from S3");
         exec.block_on(async move {
             // TODO: Provide a way to designate region.
             let client = S3Client::new(Region::UsEast1);

@@ -215,6 +215,7 @@ pub trait ReleaseUpdate {
         let mut download = Download::from_url(&target_asset.download_url);
 
         if cfg!(feature = "rusoto") && download.url.starts_with("s3://") {
+            debug!("Downloading with Rusoto");
             download.download_with_rusoto_to(&mut tmp_archive)?;
         } else {
             let mut headers = api_headers(&self.auth_token());
