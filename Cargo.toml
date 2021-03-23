@@ -30,7 +30,7 @@ rusoto_s3 = { version = "0.46.0", optional = true }
 tokio = { version = "1.1.0", optional = true}
 
 [features]
-default = ["reqwest/default-tls", "rusoto"]
+default = ["reqwest/default-tls"]
 rusoto = ["rusoto_core", "rusoto_s3", "tokio/rt"]
 archive-zip = ["zip"]
 compression-zip-bzip2 = ["zip/bzip2"] #
