@@ -485,10 +485,100 @@ impl ReleaseUpdate for Update {
     }
 }
 
+#[cfg(feature = "rusoto")]
+fn fetch_releases_from_s3(
+    _end_point: EndPoint,
+    bucket_name: &str,
+    region: &Option<String>,
+    asset_prefix: &Option<String>,
+) -> Result<Vec<Release>> {
+    use rusoto_core::Region;
+    use rusoto_s3::{ListObjectsV2Request, S3Client, S3};
+    use std::str::FromStr;
+
+    // Let's now parse the response to extract the releases
+    let mut current_release: Option<Release> = None;
+    let regex =
+        Regex::new(r"(?i)(?P<prefix>.*/)*(?P<name>.+)-[v]{0,1}(?P<version>\d+\.\d+\.\d+)-.+")
+            .map_err(|err| {
+                Error::Release(format!(
+                    "Failed constructing regex to parse S3 filenames: {}",
+                    err
+                ))
+            })?;
+
+    let prefix = asset_prefix.clone();
+    let region = region
+        .as_ref()
+        .map(|ref region| Region::from_str(region).unwrap());
+
+    let exec = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+
+    let data = exec.block_on(async move {
+        let mut releases: Vec<Release> = vec![];
+        let client = S3Client::new(region.unwrap_or(Region::UsEast1));
+        let mut continuation_token = None;
+        let mut truncated = true;
+
+        while truncated {
+            let result = client
+                .list_objects_v2(ListObjectsV2Request {
+                    bucket: bucket_name.into(),
+                    max_keys: Some(100),
+                    continuation_token,
+                    prefix: prefix.clone(),
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+
+            for item in result.contents.unwrap_or_default() {
+                let key = item.key.unwrap_or_default();
+                let path = PathBuf::from(&key);
+                let exe_name = match path.file_name().map(|v| v.to_str()) {
+                    Some(Some(v)) => v,
+                    _ => &key,
+                };
+
+                if let Some(captures) = regex.captures(&key) {
+                    let mut release = Release::default();
+                    release.name = captures["name"].to_string();
+                    release.version = captures["version"].trim_start_matches('v').to_string();
+                    release.assets = vec![ReleaseAsset {
+                        name: exe_name.to_string(),
+                        download_url: "".to_string(),
+                    }];
+
+                    if let Some(last_modified) = item.last_modified {
+                        release.date = last_modified;
+                    }
+
+                    debug!("Matched release: {:?}", release);
+
+                    releases.push(release);
+                } else {
+                    debug!("Regex mismatch: {:?}", &key);
+                }
+            }
+
+            continuation_token = result.continuation_token;
+            truncated = result.is_truncated.unwrap_or_default();
+        }
+
+        releases
+    });
+
+    Ok(data)
+}
+
 /// Obtain list of releases from AWS S3 API, from bucket and region specified,
 /// filtering assets which don't match the prefix string if provided.
 ///
 /// This will strip the prefix from provided file names, allowing use with subdirectories
+#[cfg(not(feature = "rusoto"))]
 fn fetch_releases_from_s3(
     end_point: EndPoint,
     bucket_name: &str,
