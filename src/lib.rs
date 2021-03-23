@@ -695,12 +695,14 @@ impl Download {
                 None
             };
 
+            debug!("Downloading {} bytes", size);
             while downloaded < size {
                 // 8KB buffer
                 let mut buf = [0u8; 8 * 1024 * 1024];
                 let data = src.read(&mut buf).await;
 
                 if let Ok(bytes_read) = data {
+                    debug!("Read {} bytes", bytes_read);
                     if bytes_read > 0 {
                         dest.write(&buf[..bytes_read])?;
                     }
