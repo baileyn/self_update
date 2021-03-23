@@ -139,6 +139,7 @@ use std::fs;
 use std::io;
 use std::path;
 use std::{cmp::min, io::BufRead};
+use tokio::io::AsyncReadExt;
 
 #[macro_use]
 extern crate log;
@@ -680,33 +681,35 @@ impl Download {
                 .await
                 .unwrap();
 
-            let size = object.content_length.unwrap_or(0) as u64;
+            let size = object.content_length.unwrap_or(0) as usize;
             let show_progress = if size == 0 { false } else { self.show_progress };
 
-            let mut src = io::BufReader::new(object.body.unwrap().into_blocking_read());
+            let mut src = object.body.unwrap().into_async_read();
             let mut downloaded = 0;
             let mut bar = if show_progress {
-                let pb = ProgressBar::new(size);
+                let pb = ProgressBar::new(size as u64);
                 pb.set_style(self.progress_style.clone());
 
                 Some(pb)
             } else {
                 None
             };
-            loop {
-                let n = {
-                    let buf = src.fill_buf()?;
-                    dest.write_all(&buf)?;
-                    buf.len()
-                };
-                if n == 0 {
-                    break;
+
+            while downloaded < size {
+                // 8KB buffer
+                let mut buf = [0u8; 8 * 1024 * 1024];
+                let data = src.read(&mut buf).await;
+
+                if let Ok(bytes_read) = data {
+                    if bytes_read > 0 {
+                        dest.write(&buf[..bytes_read])?;
+                    }
+
+                    downloaded = min(downloaded + bytes_read, size);
                 }
-                src.consume(n);
-                downloaded = min(downloaded + n as u64, size);
 
                 if let Some(ref mut bar) = bar {
-                    bar.set_position(downloaded);
+                    bar.set_position(downloaded as u64);
                 }
             }
             if let Some(ref mut bar) = bar {
@@ -729,6 +732,7 @@ impl Download {
     ///     * Writing from `BufReader`-buffer to `File`
     pub fn download_to<T: io::Write>(&self, mut dest: T) -> Result<()> {
         use io::BufRead;
+
         let mut headers = self.headers.clone();
         if !headers.contains_key(header::USER_AGENT) {
             headers.insert(
