@@ -213,16 +213,21 @@ pub trait ReleaseUpdate {
 
         println(show_output, "Downloading...");
         let mut download = Download::from_url(&target_asset.download_url);
-        let mut headers = api_headers(&self.auth_token());
-        headers.insert(header::ACCEPT, "application/octet-stream".parse().unwrap());
-        download.set_headers(headers);
-        download.show_progress(self.show_download_progress());
 
-        if let Some(ref progress_style) = self.progress_style() {
-            download.set_progress_style(progress_style.clone());
+        if cfg!(feature = "rusoto") && download.url.starts_with("s3://") {
+            download.download_with_rusoto_to(&mut tmp_archive)?;
+        } else {
+            let mut headers = api_headers(&self.auth_token());
+            headers.insert(header::ACCEPT, "application/octet-stream".parse().unwrap());
+            download.set_headers(headers);
+            download.show_progress(self.show_download_progress());
+
+            if let Some(ref progress_style) = self.progress_style() {
+                download.set_progress_style(progress_style.clone());
+            }
+
+            download.download_to(&mut tmp_archive)?;
         }
-
-        download.download_to(&mut tmp_archive)?;
 
         print_flush(show_output, "Extracting archive... ")?;
         let bin_path_in_archive = self.bin_path_in_archive();

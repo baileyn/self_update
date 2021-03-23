@@ -497,7 +497,6 @@ fn fetch_releases_from_s3(
     use std::str::FromStr;
 
     // Let's now parse the response to extract the releases
-    let mut current_release: Option<Release> = None;
     let regex =
         Regex::new(r"(?i)(?P<prefix>.*/)*(?P<name>.+)-[v]{0,1}(?P<version>\d+\.\d+\.\d+)-.+")
             .map_err(|err| {
@@ -549,7 +548,7 @@ fn fetch_releases_from_s3(
                     release.version = captures["version"].trim_start_matches('v').to_string();
                     release.assets = vec![ReleaseAsset {
                         name: exe_name.to_string(),
-                        download_url: "".to_string(),
+                        download_url: format!("s3://{}/{}", bucket_name, key),
                     }];
 
                     if let Some(last_modified) = item.last_modified {
