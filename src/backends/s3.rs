@@ -558,7 +558,7 @@ fn fetch_releases_from_s3(
 
                     debug!("Matched release: {:?}", release);
 
-                    releases.push(release);
+                    add_to_releases_list(&mut releases, release);
                 } else {
                     debug!("Regex mismatch: {:?}", &key);
                 }
