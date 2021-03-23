@@ -655,28 +655,21 @@ impl Download {
         use rusoto_core::Region;
         use rusoto_s3::{GetObjectRequest, S3Client, S3};
 
-        println!("Checking se url");
         if !self.url.starts_with("s3://") {
             return Err(Error::Update("expected S3Uri".into()));
         }
 
-        println!("Splitting string");
         let url = &self.url[5..];
-        println!("Grabbing parts");
         let parts = url.splitn(2, '/').collect::<Vec<_>>();
 
-        println!("Grabbing first");
         let bucket = parts[0].to_string();
-        println!("grabbing second");
         let key = parts[1].to_string();
 
-        println!("Creating runtime");
         let exec = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap();
 
-        println!("Downloading from S3");
         exec.block_on(async move {
             // TODO: Provide a way to designate region.
             let client = S3Client::new(Region::UsEast1);
@@ -703,14 +696,12 @@ impl Download {
                 None
             };
 
-            println!("Downloading {} bytes", size);
             while downloaded < size {
                 // 8KB buffer
-                let mut buf = [0u8; 8 * 1024 * 1024];
+                let mut buf = vec![0u8; 8 * 1024 * 1024];
                 let data = src.read(&mut buf).await;
 
                 if let Ok(bytes_read) = data {
-                    println!("Read {} bytes", bytes_read);
                     if bytes_read > 0 {
                         dest.write(&buf[..bytes_read])?;
                     }
