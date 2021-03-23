@@ -655,13 +655,19 @@ impl Download {
         use rusoto_core::Region;
         use rusoto_s3::{GetObjectRequest, S3Client, S3};
 
+        println!("Checking se url");
         if !self.url.starts_with("s3://") {
             return Err(Error::Update("expected S3Uri".into()));
         }
 
+        println!("Splitting string");
         let url = &self.url[5..];
+        println!("Grabbing parts");
         let parts = url.splitn(2, '/').collect::<Vec<_>>();
+
+        println!("Grabbing first");
         let bucket = parts[0].to_string();
+        println!("grabbing second");
         let key = parts[1].to_string();
 
         println!("Creating runtime");
